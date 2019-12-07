@@ -1,5 +1,5 @@
 #include <windows.h>
-
+#include <cstdlib>
 #include "xmp-sdk/xmpdsp.h" // requires the XMPlay "DSP/general plugin SDK"
 #include "rpc.h"
 
@@ -15,6 +15,12 @@ static void *WINAPI DSP_New(void);
 static void WINAPI DSP_Free(void *inst);
 static const char *WINAPI DSP_GetDescription(void *inst);
 static void WINAPI DSP_Config(void *inst, HWND win);
+static DWORD WINAPI DSP_GetConfig(void *inst, void *config);
+static BOOL WINAPI DSP_SetConfig(void *inst, void *config, DWORD size);
+
+typedef struct {
+} Config;
+static Config ourConfig;
 
 static XMPDSP dsp = {
 	XMPDSP_FLAG_NODSP,
@@ -24,11 +30,13 @@ static XMPDSP dsp = {
 	DSP_Free,
 	DSP_GetDescription,
 	DSP_Config,
+	DSP_GetConfig,
+	DSP_SetConfig,
 };
 
 bool init = false;
 
-static void WINAPI SetNowPlaying(BOOL close)
+static void WINAPI SetNowPlaying(bool close)
 {
 	char *title = NULL;
 
@@ -40,6 +48,8 @@ static void WINAPI SetNowPlaying(BOOL close)
 
 		if (!title) title = xmpfmisc->GetTag(TAG_FORMATTED_TITLE); // get track title
 	}
+
+	//int length = strtol(xmpfmisc->GetTag(TAG_LENGTH), NULL, 10);
 
 	UpdatePresence(title);
 
@@ -91,6 +101,19 @@ static void WINAPI DSP_Config(void *inst, HWND win)
 	MessageBoxA(win, "Nothing to configure (yet).", "Discord Rich Presence", MB_OK | MB_ICONINFORMATION);
 }
 
+static DWORD WINAPI DSP_GetConfig(void *inst, void *config)
+{
+	memcpy(config, &ourConfig, sizeof(ourConfig));
+	return sizeof(ourConfig); // return size of config info
+}
+
+static BOOL WINAPI DSP_SetConfig(void *inst, void *config, DWORD size)
+{
+	memcpy(&ourConfig, config, min(size, sizeof(ourConfig)));
+	SetNowPlaying(FALSE);
+	return TRUE;
+}
+
 // get the plugin's XMPDSP interface
 #ifdef __cplusplus
 extern "C"
@@ -108,5 +131,5 @@ BOOL WINAPI DllMain(HINSTANCE hDLL, DWORD reason, LPVOID reserved)
 		ghInstance = hDLL;
 		DisableThreadLibraryCalls(hDLL);
 	}
-	return 1;
+	return TRUE;
 }

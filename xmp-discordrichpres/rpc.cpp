@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <stdio.h>
+#include <ctime>
 #include "discord-rpc/include/discord_rpc.h"
 #pragma comment(lib, "discord-rpc/lib/discord-rpc.lib")
 
@@ -48,6 +49,12 @@ void UpdatePresence(char *songname)
 	char songinfo[256];
 
 	sprintf_s(songinfo, 256, songname);
+
+	//time_t now = time(NULL);
+	//time_t later = time(NULL) + length;
+
+	//discordPresence.startTimestamp = now;
+	//discordPresence.endTimestamp = later;
 
 	discordPresence.largeImageKey = "icon";
 	discordPresence.state = songinfo;
