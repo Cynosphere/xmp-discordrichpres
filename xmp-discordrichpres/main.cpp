@@ -7,9 +7,11 @@ static XMPFUNC_MISC *xmpfmisc;
 static XMPFUNC_STATUS *xmpfstatus;
 
 static HINSTANCE ghInstance;
+static HWND confwin = 0;
 
 static HWND xmpwin;
-static HHOOK hook;
+
+static BOOL CALLBACK DSPDialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 static void WINAPI DSP_About(HWND win);
 static void *WINAPI DSP_New(void);
@@ -18,10 +20,14 @@ static const char *WINAPI DSP_GetDescription(void *inst);
 static void WINAPI DSP_Config(void *inst, HWND win);
 static DWORD WINAPI DSP_GetConfig(void *inst, void *config);
 static BOOL WINAPI DSP_SetConfig(void *inst, void *config, DWORD size);
+static void WINAPI DSP_NewTrack(void *inst, const char *file);
+static void WINAPI DSP_Reset(void *inst);
+static void WINAPI DSP_NewTitle(void *inst, const char *title);
 
 typedef struct {
+	BOOL useFileName;
 } Config;
-static Config ourConfig;
+static Config conf;
 
 static XMPDSP dsp = {
 	XMPDSP_FLAG_NODSP,
@@ -33,6 +39,11 @@ static XMPDSP dsp = {
 	DSP_Config,
 	DSP_GetConfig,
 	DSP_SetConfig,
+	DSP_NewTrack,
+	NULL,
+	DSP_Reset,
+	NULL,
+	DSP_NewTitle,
 };
 
 bool init = false;
@@ -47,29 +58,40 @@ static void WINAPI SetNowPlaying(BOOL close)
 			init = true;
 		}
 
-		if (!title) title = xmpfmisc->GetTag(TAG_FORMATTED_TITLE); // get track title
+		if (!title) {
+			if (conf.useFileName == TRUE) {
+				title = xmpfmisc->GetTag(TAG_FILENAME);
+			}
+			else {
+				title = xmpfmisc->GetTag(TAG_FORMATTED_TITLE);
+			}
+		}
+	} else {
+		ClearPresence();
 	}
 
 
 	if (title) {
-		int length = strtol(xmpfmisc->GetTag(TAG_LENGTH), NULL, 10);
+		char *len = xmpfmisc->GetTag(TAG_LENGTH);
+		int length = strtol(len, NULL, 10);
 		int pos = xmpfstatus->GetTime();
 		char *type = xmpfmisc->GetTag(TAG_FILETYPE);
+		DWORD _version = xmpfmisc->GetVersion();
 
-		UpdatePresence(title, type, length, pos);
+		int patch = (_version & 0xFF);
+		int rev = (_version & 0xFF00) >> 8;
+		int minor = (_version & 0xFF0000) >> 16;
+		int major = (_version & 0xFF000000) >> 24;
+
+		char version[256];
+
+		sprintf_s(version, 256, "%d.%d.%d.%d", major, minor, rev, patch);
+
+		UpdatePresence(title, type, length, pos, version);
 
 		xmpfmisc->Free(title);
+		xmpfmisc->Free(len);
 	}
-}
-
-static LRESULT CALLBACK HookProc(int n, WPARAM w, LPARAM l)
-{
-	if (n == HC_ACTION) {
-		CWPSTRUCT *cwp = (CWPSTRUCT*)l;
-		if (cwp->message == WM_SETTEXT && cwp->hwnd == xmpwin) // title change
-			SetNowPlaying(FALSE);
-	}
-	return CallNextHookEx(hook, n, w, l);
 }
 
 static void WINAPI DSP_About(HWND win)
@@ -86,36 +108,80 @@ static void *WINAPI DSP_New()
 {
 	xmpwin = xmpfmisc->GetWindow();
 
+	conf.useFileName = FALSE;
 	SetNowPlaying(FALSE);
-
-	// setup hook to catch title changes
-	hook = SetWindowsHookEx(WH_CALLWNDPROC, &HookProc, NULL, GetWindowThreadProcessId(xmpwin, NULL));
 
 	return (void*)1;
 }
 
+#define MESS(id,m,w,l) SendDlgItemMessage(h,id,m,(WPARAM)(w),(LPARAM)(l))
+
+static BOOL CALLBACK DSPDialogProc(HWND h, UINT m, WPARAM w, LPARAM l)
+{
+	switch (m) {
+		case WM_COMMAND:
+			switch (LOWORD(w)) {
+				case IDOK:
+					conf.useFileName = (BST_CHECKED == MESS(10, BM_GETCHECK, 0, 0));
+					SetNowPlaying(FALSE);
+				case IDCANCEL:
+					EndDialog(h, 0);
+					break;
+				}
+			break;
+		case WM_INITDIALOG:
+			confwin = h;
+			MESS(10, BM_SETCHECK, conf.useFileName, 0);
+			return TRUE;
+
+		case WM_DESTROY:
+			confwin = 0;
+			break;
+	}
+	return FALSE;
+}
+
 static void WINAPI DSP_Free(void *inst)
 {
-	UnhookWindowsHookEx(hook);
+	if (confwin) EndDialog(confwin, 0);
 	SetNowPlaying(TRUE);
 }
 
 static void WINAPI DSP_Config(void *inst, HWND win)
 {
-	MessageBoxA(win, "Nothing to configure (yet).", "Discord Rich Presence", MB_OK | MB_ICONINFORMATION);
+	DialogBox(ghInstance, MAKEINTRESOURCE(1000), win, &DSPDialogProc);
 }
 
 static DWORD WINAPI DSP_GetConfig(void *inst, void *config)
 {
-	memcpy(config, &ourConfig, sizeof(ourConfig));
-	return sizeof(ourConfig); // return size of config info
+	memcpy(config, &conf, sizeof(conf));
+	return sizeof(conf); // return size of config info
 }
 
 static BOOL WINAPI DSP_SetConfig(void *inst, void *config, DWORD size)
 {
-	memcpy(&ourConfig, config, min(size, sizeof(ourConfig)));
+	memcpy(&conf, config, min(size, sizeof(conf)));
 	SetNowPlaying(FALSE);
 	return TRUE;
+}
+
+static void WINAPI DSP_Reset(void *inst)
+{
+	SetNowPlaying(FALSE);
+}
+
+static void WINAPI DSP_NewTrack(void *inst, const char *file)
+{
+	if (file == NULL) {
+		SetNowPlaying(TRUE);
+	}
+	else {
+		SetNowPlaying(FALSE);
+	}
+}
+
+static void WINAPI DSP_NewTitle(void *inst, const char *title) {
+	SetNowPlaying(FALSE);
 }
 
 // get the plugin's XMPDSP interface

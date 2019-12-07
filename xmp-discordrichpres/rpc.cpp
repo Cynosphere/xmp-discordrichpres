@@ -42,15 +42,17 @@ void InitPresence()
 
 char oldState[256];
 
-void UpdatePresence(char *songname, char *type, int length, int pos)
+void UpdatePresence(char *songname, char *type, int length, int pos, char *version)
 {
 	InitPresence();
 
 	char songinfo[256];
 	char filetype[256];
+	char ver[256];
 
 	sprintf_s(songinfo, 256, songname);
 	sprintf_s(filetype, 256, "%s file", type);
+	sprintf_s(ver, 256, "XMPlay v%s", version);
 
 	time_t now = time(NULL);
 	time_t later = time(NULL) + (length - pos);
@@ -59,9 +61,16 @@ void UpdatePresence(char *songname, char *type, int length, int pos)
 	discordPresence.endTimestamp = later;
 
 	discordPresence.largeImageKey = "icon";
-	discordPresence.state = songinfo;
-	discordPresence.details = filetype;
+	discordPresence.largeImageText = ver;
+	discordPresence.state = filetype;
+	discordPresence.details = songinfo;
 	sprintf_s(oldState, 256, songinfo);
 	discordPresence.instance = 1;
 	Discord_UpdatePresence(&discordPresence);
+}
+
+void ClearPresence()
+{
+	Discord_ClearPresence();
+	initialized = false;
 }
