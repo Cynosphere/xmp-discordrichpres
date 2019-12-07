@@ -42,22 +42,25 @@ void InitPresence()
 
 char oldState[256];
 
-void UpdatePresence(char *songname)
+void UpdatePresence(char *songname, char *type, int length, int pos)
 {
 	InitPresence();
 
 	char songinfo[256];
+	char filetype[256];
 
 	sprintf_s(songinfo, 256, songname);
+	sprintf_s(filetype, 256, "%s file", type);
 
-	//time_t now = time(NULL);
-	//time_t later = time(NULL) + length;
+	time_t now = time(NULL);
+	time_t later = time(NULL) + (length - pos);
 
-	//discordPresence.startTimestamp = now;
-	//discordPresence.endTimestamp = later;
+	discordPresence.startTimestamp = now;
+	discordPresence.endTimestamp = later;
 
 	discordPresence.largeImageKey = "icon";
 	discordPresence.state = songinfo;
+	discordPresence.details = filetype;
 	sprintf_s(oldState, 256, songinfo);
 	discordPresence.instance = 1;
 	Discord_UpdatePresence(&discordPresence);

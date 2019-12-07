@@ -4,6 +4,7 @@
 #include "rpc.h"
 
 static XMPFUNC_MISC *xmpfmisc;
+static XMPFUNC_STATUS *xmpfstatus;
 
 static HINSTANCE ghInstance;
 
@@ -36,7 +37,7 @@ static XMPDSP dsp = {
 
 bool init = false;
 
-static void WINAPI SetNowPlaying(bool close)
+static void WINAPI SetNowPlaying(BOOL close)
 {
 	char *title = NULL;
 
@@ -49,11 +50,14 @@ static void WINAPI SetNowPlaying(bool close)
 		if (!title) title = xmpfmisc->GetTag(TAG_FORMATTED_TITLE); // get track title
 	}
 
-	//int length = strtol(xmpfmisc->GetTag(TAG_LENGTH), NULL, 10);
-
-	UpdatePresence(title);
 
 	if (title) {
+		int length = strtol(xmpfmisc->GetTag(TAG_LENGTH), NULL, 10);
+		int pos = xmpfstatus->GetTime();
+		char *type = xmpfmisc->GetTag(TAG_FILETYPE);
+
+		UpdatePresence(title, type, length, pos);
+
 		xmpfmisc->Free(title);
 	}
 }
@@ -122,6 +126,7 @@ XMPDSP *WINAPI XMPDSP_GetInterface2(DWORD face, InterfaceProc faceproc)
 {
 	if (face != XMPDSP_FACE) return NULL;
 	xmpfmisc = (XMPFUNC_MISC*)faceproc(XMPFUNC_MISC_FACE); // import "misc" functions
+	xmpfstatus = (XMPFUNC_STATUS*)faceproc(XMPFUNC_STATUS_FACE); // import "status" functions
 	return &dsp;
 }
 

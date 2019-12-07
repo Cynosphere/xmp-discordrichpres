@@ -18,4 +18,4 @@ void InitDiscord();
 
 void InitPresence();
 
-void UpdatePresence(char *songname);
+void UpdatePresence(char *songname, char *type, int length, int pos);
